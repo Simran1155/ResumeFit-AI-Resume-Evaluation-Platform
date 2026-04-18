@@ -1,0 +1,64 @@
+/* General Page Styles */
+body {
+    background-color: #f0f2f5;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container {
+    max-width: 700px;
+    margin-top: 50px;
+}
+
+/* Card for Form */
+.card {
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0px 6px 15px rgba(0,0,0,0.1);
+    padding: 25px;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: #4a90e2;
+    border: none;
+}
+.btn-primary:hover {
+    background-color: #357ABD;
+}
+
+/* Loader Spinner */
+.loader {
+    display: none;
+    margin-top: 15px;
+    text-align: center;
+}
+.loader div {
+    width: 20px;
+    height: 20px;
+    margin: 0 auto;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4a90e2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
+}
+
+/* Result Card */
+.result {
+    margin-top: 20px;
+    background-color: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+}
+
+/* Suggestions List */
+#suggestions li {
+    background-color: #e9f5ff;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 5px;
+}
