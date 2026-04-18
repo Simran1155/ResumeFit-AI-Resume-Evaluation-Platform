@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resume Analyzer</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { background-color: #f8f9fa; font-family: Arial, sans-serif; }
+.container { max-width: 900px; margin-top: 50px; }
+.result { margin-top: 20px; padding: 25px; background-color: #fff; border-radius: 10px; box-shadow: 0px 0px 15px rgba(0,0,0,0.1); }
+.loader { display: none; }
+.circular-score { position: relative; width: 120px; height: 120px; margin: 15px auto; }
+.circular-score svg { transform: rotate(-90deg); }
+.circular-score circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+.circular-score .bg { stroke: #e6e6e6; }
+.circular-score .progress { stroke: #0d6efd; stroke-dasharray: 314; stroke-dashoffset: 314; transition: stroke-dashoffset 1s; }
+.circular-score .score-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.3rem; font-weight: bold; }
+.fit-category { text-align: center; font-weight: bold; margin-top: 10px; font-size: 1.1rem; color: #0d6efd; }
+h5 { color: #0d6efd; margin-top: 20px; font-size: 1.25rem; }
+ul { margin-left: 25px; list-style-type: disc; }
+.suggestion-list li { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h2 class="text-center mb-4">Resume Analyzer</h2>
+    <form id="resumeForm">
+        <div class="mb-3">
+            <label for="jobTitle" class="form-label">Select Job Title</label>
+            <select class="form-select" id="jobTitle" name="jobtitle" required>
+                <option value="">Loading job titles...</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="resumeFile" class="form-label">Upload Resume (.pdf, .docx, .txt)</label>
+            <input class="form-control" type="file" id="resumeFile" name="resume" accept=".pdf,.docx,.txt" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Analyze Resume</button>
+        <div class="loader mt-3">Analyzing...</div>
+    </form>
+
+    <div class="result mt-4" id="result" style="display:none;">
+        <!-- Circular score -->
+        <div class="circular-score">
+            <svg width="120" height="120">
+                <circle class="bg" cx="60" cy="60" r="50"></circle>
+                <circle class="progress" cx="60" cy="60" r="50"></circle>
+            </svg>
+            <div class="score-text" id="score">0%</div>
+        </div>
+        <!-- Fit Category -->
+        <div class="fit-category" id="fitCategory"></div>
+
+        <!-- General Advice -->
+        <h5>General Advice</h5>
+        <p id="generalAdvice"></p>
+
+        <!-- Improvement Suggestions -->
+        <h5>Improvement Suggestions</h5>
+        <ul id="suggestionList" class="suggestion-list"></ul>
+
+        <!-- Job Role Match -->
+        <h5>Job Role Match</h5>
+        <p id="jobRoleMatch"></p>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Fetch job titles
+    fetch('/get-job-categories')
+        .then(res => res.json())
+        .then(data => {
+            const jobSelect = document.getElementById('jobTitle');
+            jobSelect.innerHTML = '<option value="">Select a job title</option>';
+            if (data.categories && data.categories.length > 0) {
+                data.categories.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job;
+                    option.textContent = job;
+                    jobSelect.appendChild(option);
+                });
+            } else {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "No job titles found";
+                jobSelect.appendChild(option);
+            }
+        });
+
+    const form = document.getElementById('resumeForm');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const loader = document.querySelector('.loader');
+        loader.style.display = 'block';
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'none';
+        const formData = new FormData(form);
+
+        fetch('/upload_resume', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                loader.style.display = 'none';
+                if (!data.suggestions) {
+                    alert("Could not generate suggestions");
+                    return;
+                }
+
+                // --- Circular score ---
+                const scorePercent = Math.min(Math.max(data.score || 0, 0), 100);
+                document.getElementById('score').textContent = scorePercent.toFixed(0) + '%';
+                const circle = document.querySelector('.circular-score .progress');
+                const circumference = 2 * Math.PI * 50;
+                const offset = circumference - (circumference * scorePercent / 100);
+                circle.style.strokeDasharray = circumference;
+                circle.style.strokeDashoffset = offset;
+
+                // --- Display Fit Category ---
+                document.getElementById('fitCategory').textContent = data.fit_category || "";
+
+                // --- Robust Parsing Function ---
+                function parseResumeAnalysis(content) {
+                    content = content.replace(/\r\n/g, '\n').trim();
+
+                    let generalAdvice = '';
+                    let improvementSuggestions = [];
+                    let jobRoleMatch = '';
+
+                    // Regex patterns
+                    const generalRegex = /General Advice:\n([\s\S]*?)(?=\nImprovement Suggestions:|$)/i;
+                    const suggestionsRegex = /Improvement Suggestions:\n([\s\S]*?)(?=\nJob Role Match:|$)/i;
+                    const jobRoleRegex = /Job Role Match:\n([\s\S]*)/i;
+
+                    // Parse General Advice
+                    const generalMatch = content.match(generalRegex);
+                    generalAdvice = generalMatch && generalMatch[1] ? generalMatch[1].trim() : "No general advice available.";
+
+                    // Parse Improvement Suggestions
+                    const suggestionsMatch = content.match(suggestionsRegex);
+                    if (suggestionsMatch && suggestionsMatch[1]) {
+                        const lines = suggestionsMatch[1].split(/\n/);
+                        lines.forEach(line => {
+                            let cleanLine = line.replace(/\*\*/g, '').replace(/^-+\s*/, '').trim();
+                            if (cleanLine && !/^Job Role Match:/i.test(cleanLine)) {
+                                improvementSuggestions.push(cleanLine);
+                            }
+                        });
+                    }
+
+                    while (improvementSuggestions.length < 4) {
+                        improvementSuggestions.push("No suggestion available.");
+                    }
+
+                    // Parse Job Role Match
+                    const jobRoleMatchMatch = content.match(jobRoleRegex);
+                    if (jobRoleMatchMatch && jobRoleMatchMatch[1]) {
+                        const lines = jobRoleMatchMatch[1].split('\n').map(l => l.trim()).filter(l => l);
+                        jobRoleMatch = lines.length > 0 ? lines[0] : "No suitable job role identified.";
+                    } else {
+                        jobRoleMatch = "No suitable job role identified.";
+                    }
+
+                    return { generalAdvice, suggestions: improvementSuggestions, jobRoleMatch };
+                }
+
+                const parsedData = parseResumeAnalysis(data.suggestions);
+
+                // Set sections
+                document.getElementById('generalAdvice').textContent = parsedData.generalAdvice;
+
+                const suggestionList = document.getElementById('suggestionList');
+                suggestionList.innerHTML = '';
+                parsedData.suggestions.forEach(line => {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    suggestionList.appendChild(li);
+                });
+
+                document.getElementById('jobRoleMatch').textContent = parsedData.jobRoleMatch;
+
+                resultDiv.style.display = 'block';
+            })
+            .catch(err => {
+                loader.style.display = 'none';
+                alert('Error: ' + err);
+            });
+    });
+});
+</script>
+</body>
+</html>
